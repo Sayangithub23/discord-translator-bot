@@ -1,20 +1,23 @@
-# Discord Translator Bot — EN↔FR
+# Discord Translator Bot — Reaction Based Multi-Language
 
-A free, persistent Discord translator bot with caching, email rotation,
-and automatic failover. Works in servers and DMs.
+A free, persistent Discord translator bot. React with a flag emoji to
+translate any message into that language. No auto-translation — clean
+chat, quota only used when needed.
 
 ---
 
-## Architecture
+## How it works
 
 ```
-Discord message (server or DM)
+Someone sends "Good morning"
+        │
+        │  No auto-translation — chat stays clean
         │
         ▼
- langdetect (EN or FR?)
+French friend reacts 🇫🇷
         │
         ▼
- Check translation cache
+Check translation cache
         │
    ┌────┴────┐
   HIT       MISS
@@ -24,7 +27,7 @@ instantly   (email rotation)
   ⚡             │
             save to cache
                 │
-            reply to user
+Bot replies: "🇫🇷 French: Bonjour"
 ```
 
 ### Email rotation (quota management)
@@ -34,7 +37,7 @@ Email slot 1 active → hits 10k limit
         ↓
 Email slot 2 activates → hits 10k limit
         ↓
-Email slot 3 activates → ...
+...
         ↓
 All exhausted → anonymous fallback (5k/day)
         ↓
@@ -43,17 +46,36 @@ All exhausted → anonymous fallback (5k/day)
 
 ---
 
+## Supported Flag Reactions
+
+| Flag | Language   |
+| ---- | ---------- |
+| 🇫🇷   | French     |
+| 🇸🇦   | Arabic     |
+| 🇬🇧   | English    |
+| 🇩🇪   | German     |
+| 🇪🇸   | Spanish    |
+| 🇮🇳   | Hindi      |
+| 🇧🇩   | Bengali    |
+| 🇯🇵   | Japanese   |
+| 🇨🇳   | Chinese    |
+| 🇵🇹   | Portuguese |
+
+Adding more languages: just add a new line to `FLAG_TO_LANG` in `bot.py`.
+
+---
+
 ## Current Stack
 
-| Component          | Tool              | Cost               |
-| ------------------ | ----------------- | ------------------ |
-| Discord bot        | discord.py        | Free               |
-| Translation        | MyMemory API      | Free, no card      |
-| Language detection | langdetect        | Free, runs locally |
-| Cache              | JSON file on disk | Free, persistent   |
+| Component   | Tool              | Cost             |
+| ----------- | ----------------- | ---------------- |
+| Discord bot | discord.py        | Free             |
+| Translation | MyMemory API      | Free, no card    |
+| Cache       | JSON file on disk | Free, persistent |
 
 > DeepL and LibreTranslate were removed — DeepL requires a card,
 > LibreTranslate public instance is no longer free.
+> langdetect removed — source language auto-detected by MyMemory.
 
 ---
 
@@ -66,8 +88,7 @@ All exhausted → anonymous fallback (5k/day)
 | 6 emails  | 60,000    |
 | 10 emails | 100,000   |
 
-For a private conversation between 2 people, 5,000 words/day
-is more than enough. Cache hits don't count toward quota.
+Cache hits don't count toward quota — repeated phrases are free.
 
 ---
 
@@ -80,6 +101,8 @@ Discord Bot/
 ├── providers.py             Provider classes (future use)
 ├── requirements.txt         Python dependencies
 ├── translation_cache.json   Auto-created on first run, persists forever
+├── .env                     Your Discord token — never share this
+├── .gitignore               Keeps .env off GitHub
 └── README.md
 ```
 
@@ -90,28 +113,34 @@ Discord Bot/
 ### 1. Install dependencies
 
 ```bash
-pip install discord.py requests langdetect
+pip install discord.py requests python-dotenv
 ```
 
 ### 2. Create a Discord bot
 
 - Go to https://discord.com/developers/applications
 - New Application → Bot → Reset Token → Copy token
-- Enable **Message Content Intent** under Privileged Gateway Intents
+- Enable these under Privileged Gateway Intents:
+  - ✅ Server Members Intent
+  - ✅ Message Content Intent
 - Save Changes
 
 ### 3. Invite bot to your server
 
 - OAuth2 → URL Generator
 - Scope: `bot`
-- Permissions: `Send Messages` + `Read Message History` + `Embed Links`
+- Permissions: `Send Messages` + `Read Message History` + `Embed Links` + `Add Reactions`
 - Open generated URL → invite to server
 
-### 4. Configure bot.py
+### 4. Create .env file
+
+```
+DISCORD_TOKEN=your_token_here
+```
+
+### 5. Configure emails in bot.py
 
 ```python
-DISCORD_TOKEN = "your token here"
-
 EMAILS = [
     "fake1@example.com",   # MyMemory never verifies emails
     "fake2@example.com",   # fake emails work fine for privacy
@@ -119,7 +148,7 @@ EMAILS = [
 ]
 ```
 
-### 5. Run
+### 6. Run
 
 ```bash
 python bot.py
@@ -127,7 +156,55 @@ python bot.py
 
 ---
 
-## Hosting Options
+## Hosting — Android + Termux (Recommended)
+
+Free forever, no card, 24/7 uptime. Works on any old Android phone.
+
+```bash
+# 1. Install Termux from F-Droid (NOT Play Store)
+# 2. Inside Termux:
+pkg update && pkg upgrade
+pkg install python git tmux termux-boot
+pip install discord.py requests python-dotenv
+
+# 3. Clone repo
+git clone https://github.com/Sayangithub23/discord-translator-bot.git
+cd discord-translator-bot
+
+# 4. Create .env
+echo "DISCORD_TOKEN=your_token_here" > .env
+
+# 5. Run persistently
+tmux new -s bot
+python bot.py
+# Volume Down + B, then D to detach
+```
+
+### Required Android settings
+
+```
+Settings → Apps → Termux → Battery → Unrestricted
+Settings → Apps → Termux → Background activity → Allow
+Settings → Developer Options → Stay awake while charging ✅
+```
+
+### Updating the bot
+
+```bash
+# On PC — push changes
+git add .
+git commit -m "your message"
+git push
+
+# On phone — pull changes
+cd discord-translator-bot
+git pull
+python bot.py
+```
+
+---
+
+## Other Hosting Options
 
 | Option                    | Cost            | 24/7             | Difficulty |
 | ------------------------- | --------------- | ---------------- | ---------- |
@@ -135,30 +212,6 @@ python bot.py
 | **Oracle Cloud Free VM**  | ✅ Free forever | ✅ Yes           | Medium     |
 | **Your PC**               | ✅ Free         | ❌ PC must be on | Very easy  |
 | Railway / Render / Fly.io | ⚠️ Limited free | ✅ Yes           | Easy       |
-
-**Recommended**: Old Android phone running Termux — free forever,
-no card needed, 24/7 uptime.
-
-### Android (Termux) setup
-
-```bash
-# Install Termux from F-Droid (not Play Store)
-pkg update
-pkg install python tmux termux-boot
-pip install discord.py requests langdetect
-
-# Run bot persistently
-tmux new -s bot
-python bot.py
-# Ctrl+B then D to detach
-```
-
-Android settings required:
-
-```
-Settings → Apps → Termux → Battery → Unrestricted
-Settings → Developer Options → Stay awake while charging ✅
-```
 
 ---
 
@@ -169,13 +222,12 @@ Translations are saved to `translation_cache.json` automatically.
 - Survives bot restarts
 - Grows smarter every day
 - Cache hits use zero API quota and respond instantly
-- Common phrases (hello, good morning, thank you) cached after first use
 
 ```json
 {
-  "en|fr|hello": "Bonjour",
-  "en|fr|good morning": "Bonjour matin",
-  "fr|en|salut comment allez-vous": "Hi how are you"
+  "fr|good morning": "Bonjour",
+  "ar|hello": "مرحبا",
+  "es|thank you": "Gracias"
 }
 ```
 
@@ -183,18 +235,8 @@ Translations are saved to `translation_cache.json` automatically.
 
 ## Limits & Gotchas
 
-- `langdetect` may misfire on very short texts (1 word) — defaults to English
-- Misspelled words may not detect correctly — normal limitation
 - MyMemory daily quota resets at midnight UTC
 - Cache resets if bot folder is deleted — keep `translation_cache.json` safe
 - On Android — don't swipe away Termux from recent apps
-
----
-
-## Adding More Languages (future)
-
-Currently supports EN↔FR only. To add more languages:
-
-1. Update `detect_language()` to include new language codes
-2. Add routing logic in `on_message()` for new language pairs
-3. MyMemory supports 50+ languages — no extra setup needed
+- Bot needs to be in a mutual server to receive DMs
+- Reactions only work on messages the bot can see (needs Read Message History)
